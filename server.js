@@ -1,58 +1,98 @@
 import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import OpenAI from "openai";
+
+dotenv.config();
 
 const app = express();
-app.use(express.json());
+const port = process.env.PORT || 3000;
+
+if (!process.env.DEEPSEEK_API_KEY) {
+  console.error("Ошибка: не найден DEEPSEEK_API_KEY");
+  process.exit(1);
+}
+
+const client = new OpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com"
+});
+
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (req, res) => {
-  res.send("Server works");
+  res.json({
+    ok: true,
+    message: "NOVA DeepSeek server is running"
+  });
 });
 
 app.post("/chat", async (req, res) => {
   try {
-    const messages = req.body.messages;
+    const { messages } = req.body;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ reply: "Нет сообщений" });
-    }
-
-    const response = await fetch("https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 300
-      })
-    });
-
-    const data = await response.json();
-
-    console.log("DEEPSEEK STATUS:", response.status);
-    console.log("DEEPSEEK DATA:", JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        reply: data?.error?.message || "Ошибка DeepSeek API"
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        reply: "Ошибка: массив messages пустой или не передан"
       });
     }
 
-    const reply = data?.choices?.[0]?.message?.content || "Нет ответа";
+    const normalizedMessages = messages
+      .filter((msg) => msg && typeof msg.role === "string")
+      .map((msg) => ({
+        role: msg.role === "assistant" ? "assistant" : "user",
+        content: typeof msg.content === "string" ? msg.content : ""
+      }))
+      .filter((msg) => msg.content.trim().length > 0);
+
+    if (normalizedMessages.length === 0) {
+      return res.status(400).json({
+        reply: "Ошибка: нет корректных сообщений для отправки"
+      });
+    }
+
+    const systemMessage = {
+      role: "system",
+      content:
+        "Ты NOVA Coach — дружелюбный ИИ-коуч по тренировкам, питанию, восстановлению и мотивации. " +
+        "Отвечай на русском языке, понятно, естественно и без лишней воды. " +
+        "Если уместно, используй списки. " +
+        "Можно использовать markdown: **жирный**, *курсив*, списки."
+    };
+
+    const completion = await client.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [systemMessage, ...normalizedMessages],
+      temperature: 0.7,
+      max_tokens: 1000,
+      stream: false
+    });
+
+    const reply = completion?.choices?.[0]?.message?.content?.trim();
+
+    if (!reply) {
+      return res.status(500).json({
+        reply: "Ошибка: DeepSeek не вернул текст ответа"
+      });
+    }
 
     res.json({ reply });
   } catch (error) {
-    console.error("SERVER ERROR:", error);
-    res.status(500).json({
-      reply: "Ошибка сервера"
+    console.error("Ошибка /chat:", error);
+
+    const status = error?.status || 500;
+    const message =
+      error?.error?.message ||
+      error?.message ||
+      "Неизвестная ошибка сервера";
+
+    res.status(status).json({
+      reply: `Ошибка сервера: ${message}`
     });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server started on port ${port}`);
 });
