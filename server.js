@@ -11,30 +11,55 @@ app.post("/chat", async (req, res) => {
   try {
     const messages = req.body.messages;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ reply: "Нет сообщений" });
     }
 
-    const geminiContents = messages.map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }]
+    const groqMessages = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content
     }));
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: geminiContents
-        })
-      }
-    );
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama3-8b-8192",
+        messages: groqMessages,
+        temperature: 0.7
+      })
+    });
 
     const data = await response.json();
 
+    console.log("GROQ:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        reply: data?.error?.message || "Ошибка Groq"
+      });
+    }
+
+    const reply = data.choices?.[0]?.message?.content || "Нет ответа";
+
+    res.json({ reply });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      reply: "Ошибка сервера"
+    });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+});
     console.log("GEMINI STATUS:", response.status);
     console.log("GEMINI DATA:", JSON.stringify(data, null, 2));
 
