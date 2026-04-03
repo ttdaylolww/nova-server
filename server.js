@@ -34,11 +34,38 @@ app.post("/chat", async (req, res) => {
 
     const data = await response.json();
 
-    res.json({
-      reply: data.output_text || "Нет ответа"
-    });
+    console.log("OPENAI STATUS:", response.status);
+    console.log("OPENAI DATA:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        reply: data?.error?.message || "Ошибка OpenAI"
+      });
+    }
+
+    let reply = "";
+
+    if (typeof data.output_text === "string" && data.output_text.trim() !== "") {
+      reply = data.output_text;
+    } else if (Array.isArray(data.output)) {
+      for (const item of data.output) {
+        if (Array.isArray(item.content)) {
+          for (const part of item.content) {
+            if (part.type === "output_text" && part.text) {
+              reply += part.text;
+            }
+          }
+        }
+      }
+    }
+
+    if (!reply.trim()) {
+      reply = "Модель ответила, но текст не удалось извлечь";
+    }
+
+    res.json({ reply });
   } catch (error) {
-    console.error(error);
+    console.error("SERVER ERROR:", error);
     res.status(500).json({
       reply: "Ошибка сервера"
     });
