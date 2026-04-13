@@ -1,7 +1,3 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -17,10 +13,10 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// OpenAI клиент — ключ только из .env, не хардкодим
+// OpenAI клиент — ключ только из .env / Render Environment Variables
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Модели через .env
+// Модели через переменные окружения
 const VISION_MODEL = process.env.OPENAI_VISION_MODEL || "gpt-4o";
 const CHAT_MODEL   = process.env.OPENAI_CHAT_MODEL   || "gpt-4o";
 
@@ -122,7 +118,7 @@ function lookupNutrientsLocal(nameRu, nameEn) {
 
 // ─────────────────────────────────────────────
 // Поиск через USDA FoodData Central (опционально)
-// Включается автоматически при наличии USDA_API_KEY в .env
+// Включается при наличии USDA_API_KEY в переменных окружения
 // Документация: https://fdc.nal.usda.gov/api-guide.html
 // ─────────────────────────────────────────────
 async function lookupNutrientsUSDA(query) {
@@ -268,8 +264,8 @@ app.post("/analyze-food-photo", upload.single("photo"), async (req, res) => {
     );
 
     return res.json({
-      success:        true,
-      items:          enrichedItems,
+      success:         true,
+      items:           enrichedItems,
       total_calories:  Math.round(total.calories),
       total_protein_g: Math.round(total.protein_g * 10) / 10,
       total_fat_g:     Math.round(total.fat_g     * 10) / 10,
@@ -297,13 +293,12 @@ app.post("/save-meal-entry", (req, res) => {
     items,
     created_at: new Date().toISOString(),
   };
-  // TODO: здесь подключить БД (MongoDB / Postgres)
   console.log("Saved meal entry:", JSON.stringify(entry));
   res.json({ success: true, entry_id: entry.id });
 });
 
 // ─────────────────────────────────────────────
-// POST /chat — AI Coach (переписан с DeepSeek на OpenAI)
+// POST /chat — AI Coach на OpenAI
 // ─────────────────────────────────────────────
 app.post("/chat", async (req, res) => {
   const { messages } = req.body;
@@ -326,14 +321,16 @@ app.post("/chat", async (req, res) => {
         ...messages,
       ],
     });
-    res.json({ reply: response.choices?.message?.content ?? "Нет ответа." });
+    res.json({ reply: response.choices[0]?.message?.content ?? "Нет ответа." });
   } catch (err) {
     console.error("Chat error:", err.message);
     res.status(502).json({ reply: "Ошибка AI. Попробуйте ещё раз." });
   }
 });
 
+// ─────────────────────────────────────────────
 // GET /health
+// ─────────────────────────────────────────────
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
