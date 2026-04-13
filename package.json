@@ -1,15 +1,24 @@
 {
-  "name": "nova-server",
-  "version": "1.0.0",
-  "description": "Server for NOVA iOS app",
+  "name": "nova-food-server",
+  "version": "1.1.0",
+  "description": "NOVA App – Food Photo Analysis & AI Coach (OpenAI)",
   "main": "server.js",
-  "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "multer": "^1.4.5-lts.1",
+    "dotenv": "^16.3.1",
+    "openai": "^4.28.0",
+    "axios": "^1.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
